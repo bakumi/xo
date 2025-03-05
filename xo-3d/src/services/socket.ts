@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 
-export const socket = io('http://localhost:5000', {
+export const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
     transports: ['websocket'],
     autoConnect: true,
     reconnection: true,
