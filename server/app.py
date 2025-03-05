@@ -19,12 +19,13 @@ app.config['SECRET_KEY'] = 'your-secret-key!'
 # Настройка Socket.IO
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
+    cors_allowed_origins=["https://xo-frontend.onrender.com", "http://localhost:5173"],
     async_mode='gevent',
     logger=True,
     engineio_logger=True,
     ping_timeout=60,
     ping_interval=25,
+    transports=['websocket', 'polling'],  # Добавляем поддержку polling
 )
 
 @dataclass

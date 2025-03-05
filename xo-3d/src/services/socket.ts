@@ -2,11 +2,12 @@ import { io } from 'socket.io-client';
 import { useGameStore } from '../store/gameStore';
 
 export const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     autoConnect: true,
     reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 3000,
+    timeout: 60000,
 });
 
 socket.on('connect', () => {
@@ -15,8 +16,14 @@ socket.on('connect', () => {
     useGameStore.getState().setError(null);
 });
 
-socket.on('connect_error', (error) => {
-    console.error('Socket connection error:', error);
+socket.on('connect_error', (err) => {
+    console.error('Connection error:', err);
+    if (socket.io.engine.transport.name === 'websocket') {
+        console.log('Switching to polling transport');
+        socket.io.engine.transport.on('upgrade', () => {
+            console.log('Upgraded transport to', socket.io.engine.transport.name);
+        });
+    }
     useGameStore.getState().setError('Ошибка подключения к серверу');
 });
 
