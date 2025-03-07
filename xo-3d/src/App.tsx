@@ -26,18 +26,19 @@ function App() {
         <Router>
             <div className="relative">
                 {showConnectingMessage && !isConnected && !error && (
-                    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded z-50">
+                    <div className="fixed top-4 left-1/2 z-50 px-4 py-3 text-blue-700 bg-blue-100 rounded border border-blue-400 transform -translate-x-1/2">
                         <p>Подключение к серверу... Первое соединение может занять до 50 секунд.</p>
                     </div>
                 )}
                 {error && (
-                    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-50">
+                    <div className="fixed top-4 left-1/2 z-50 px-4 py-3 text-red-700 bg-red-100 rounded border border-red-400 transform -translate-x-1/2">
                         <p>{error}</p>
                     </div>
                 )}
                 <Routes>
                     <Route path="/" element={<MainMenu />} />
                     <Route path="/game" element={<Game />} />
+                    <Route path="/game/bot" element={<Game />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
             </div>

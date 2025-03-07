@@ -13,10 +13,14 @@
     <div id="game-container">
         <div id="controls">
             <input type="text" id="room-id" placeholder="Введите ID комнаты">
-                <button id="join-room">Присоединиться к игре</button>
+            <button id="join-room">Присоединиться к игре</button>
+            <div id="turn-indicator">
+                <div class="turn-text">Ход игрока:</div>
+                <div id="current-player" class="player-x">X</div>
+            </div>
         </div>
-                <div id="game-canvas"></div>
+        <div id="game-canvas"></div>
     </div>
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
 </body>
-</html> 
+</html>

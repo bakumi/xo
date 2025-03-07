@@ -12,7 +12,13 @@ export interface GameState {
     currentPlayer: string;
     winner: string | null;
     winningLine: Position[] | null;
+    winningLinesX: Position[][] | null;
+    winningLinesO: Position[][] | null;
     readyPlayers: string[];
+    scoreX: number;
+    scoreO: number;
+    isGameOver: boolean;
+    isBotGame?: boolean;
 }
 
 export type GameStore = {

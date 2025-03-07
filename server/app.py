@@ -45,9 +45,21 @@ class Game:
     winner: Optional[str] = None
     winning_line: Optional[List[Tuple[int, int, int]]] = None
     ready_players: List[str] = None
+    # Добавляем подсчет выигрышных линий для каждого игрока
+    winning_lines_x: List[List[Tuple[int, int, int]]] = None
+    winning_lines_o: List[List[Tuple[int, int, int]]] = None
+    # Добавляем счет игроков
+    score_x: int = 0
+    score_o: int = 0
+    # Флаг о том, что игра завершена (все клетки заполнены или нажата кнопка завершения)
+    is_game_over: bool = False
 
     def __post_init__(self):
         self.ready_players = []
+        self.winning_lines_x = []
+        self.winning_lines_o = []
+        self.score_x = 0
+        self.score_o = 0
 
 games = {}
 
@@ -186,24 +198,64 @@ def on_move(data):
         emit('game_error', {'message': 'Cell already taken'})
         return
     
+    if game.is_game_over:
+        emit('game_error', {'message': 'Game already over'})
+        return
+    
     game.board[x][y][z] = current_player.symbol
     
     winner, winning_line = check_winner(game.board, (x, y, z))
+    
     if winner:
-        game.winner = winner
+        # Добавляем выигрышную линию в соответствующий список и увеличиваем счет
+        if winner == 'X':
+            game.winning_lines_x.append(winning_line)
+            game.score_x += 1
+        else:
+            game.winning_lines_o.append(winning_line)
+            game.score_o += 1
+            
+        logger.info(f"Player {current_player.name} formed a winning line in room {room}")
+        logger.info(f"Current score - X: {game.score_x}, O: {game.score_o}")
+        
+        # Временно сохраняем последнюю выигрышную линию для отображения
         game.winning_line = winning_line
-        logger.info(f"Player {current_player.name} won in room {room}")
-    else:
-        # Меняем текущего игрока только если игра не закончена
-        game.current_player_index = (game.current_player_index + 1) % 2
+        
+        # Проверяем, заполнена ли доска полностью
+        board_full = all(all(all(cell for cell in row) for row in plane) for plane in game.board)
+        
+        # Если доска заполнена, определяем окончательного победителя
+        if board_full:
+            logger.info(f"Board is full, game over in room {room}")
+            if game.score_x > game.score_o:
+                game.winner = 'X'
+            elif game.score_o > game.score_x:
+                game.winner = 'O'
+            else:
+                game.winner = 'draw'
+            game.is_game_over = True
+        else:
+            # Игра продолжается, выигрышная линия есть, но общего победителя еще нет
+            game.winner = None
+    
+    # Меняем текущего игрока
+    game.current_player_index = (game.current_player_index + 1) % 2
     
     game_state = {
         'board': game.board,
         'players': [{'id': p.id, 'symbol': p.symbol, 'name': p.name} for p in game.players],
         'currentPlayer': game.players[game.current_player_index].symbol,
         'winner': game.winner,
-        'winningLine': game.winning_line
+        'winningLine': game.winning_line,
+        'winningLinesX': game.winning_lines_x,
+        'winningLinesO': game.winning_lines_o,
+        'scoreX': game.score_x,
+        'scoreO': game.score_o,
+        'isGameOver': game.is_game_over,
+        'readyPlayers': game.ready_players
     }
+    
+    logger.info(f"Sending game state after move with scores: X={game_state['scoreX']}, O={game_state['scoreO']}")
     
     # Отправляем обновленное состояние всем игрокам
     emit('game_state', game_state, room=room)
@@ -296,12 +348,24 @@ def on_restart(data, callback=None):
             game.winning_line = None
             game.ready_players = []
             
+            # Сбрасываем счетчики выигрышных линий и счета
+            game.winning_lines_x = []
+            game.winning_lines_o = []
+            game.score_x = 0
+            game.score_o = 0
+            game.is_game_over = False
+            
             game_state = {
                 'board': game.board,
                 'players': [{'id': p.id, 'symbol': p.symbol, 'name': p.name} for p in game.players],
-                'currentPlayer': first_player.symbol,
+                'currentPlayer': game.players[game.current_player_index].symbol,
                 'winner': None,
                 'winningLine': None,
+                'winningLinesX': [],
+                'winningLinesO': [],
+                'scoreX': 0,
+                'scoreO': 0,
+                'isGameOver': False,
                 'readyPlayers': []
             }
         else:
@@ -311,6 +375,11 @@ def on_restart(data, callback=None):
                 'currentPlayer': game.players[game.current_player_index].symbol,
                 'winner': game.winner,
                 'winningLine': game.winning_line,
+                'winningLinesX': game.winning_lines_x,
+                'winningLinesO': game.winning_lines_o,
+                'scoreX': game.score_x,
+                'scoreO': game.score_o,
+                'isGameOver': game.is_game_over,
                 'readyPlayers': game.ready_players
             }
         
@@ -411,9 +480,76 @@ def on_player_left(data):
             'currentPlayer': game.players[0].symbol if game.players else None,
             'winner': 'disconnect',
             'winningLine': None,
+            'winningLinesX': [],
+            'winningLinesO': [],
+            'scoreX': 0,
+            'scoreO': 0,
+            'isGameOver': False,
             'readyPlayers': game.ready_players
         }
         emit('game_state', game_state, room=room)
+
+@socketio.on('end_game')
+def end_game(data):
+    room = data['room']
+    
+    if room not in games:
+        emit('game_error', {'message': 'Game not found'})
+        return
+    
+    game = games[room]
+    
+    if len(game.players) < 2:
+        emit('game_error', {'message': 'Waiting for opponent'})
+        return
+    
+    # Останавливаем игру и определяем победителя
+    game.is_game_over = True
+    
+    if game.score_x > game.score_o:
+        game.winner = 'X'
+    elif game.score_o > game.score_x:
+        game.winner = 'O'
+    else:
+        game.winner = 'draw'
+    
+    logger.info(f"Game ended manually in room {room}")
+    logger.info(f"Final score - X: {game.score_x}, O: {game.score_o}")
+    logger.info(f"Winner: {game.winner}")
+    
+    # Сначала сохраняем счета в локальных переменных
+    score_x = game.score_x
+    score_o = game.score_o
+    
+    # Убеждаемся, что они не нулевые, если были выигрышные линии
+    if len(game.winning_lines_x) > 0 and score_x == 0:
+        score_x = len(game.winning_lines_x)
+        game.score_x = score_x
+        logger.info(f"Fixed score X from 0 to {score_x} based on winning lines count")
+    
+    if len(game.winning_lines_o) > 0 and score_o == 0:
+        score_o = len(game.winning_lines_o)
+        game.score_o = score_o
+        logger.info(f"Fixed score O from 0 to {score_o} based on winning lines count")
+    
+    # Отправляем обновленное состояние всем игрокам
+    game_state = {
+        'board': game.board,
+        'players': [{'id': p.id, 'symbol': p.symbol, 'name': p.name} for p in game.players],
+        'currentPlayer': game.players[game.current_player_index].symbol,
+        'winner': game.winner,
+        'winningLine': game.winning_line,
+        'winningLinesX': game.winning_lines_x,
+        'winningLinesO': game.winning_lines_o,
+        'scoreX': score_x,
+        'scoreO': score_o,
+        'isGameOver': game.is_game_over,
+        'readyPlayers': game.ready_players
+    }
+    
+    logger.info(f"Sending game state with scores: X={game_state['scoreX']}, O={game_state['scoreO']}")
+    
+    emit('game_state', game_state, room=room)
 
 if __name__ == '__main__':
     logger.info("Starting server...")

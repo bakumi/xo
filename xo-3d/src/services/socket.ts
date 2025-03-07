@@ -42,6 +42,8 @@ socket.on('disconnect', (reason) => {
 
 socket.on('game_state', (state) => {
     console.log('Received game state:', state);
+    console.log(`Scores - X: ${state.scoreX || 0}, O: ${state.scoreO || 0}`);
+    console.log(`Is game over: ${state.isGameOver}, Winner: ${state.winner}`);
     useGameStore.getState().setGameState(state);
 });
 
